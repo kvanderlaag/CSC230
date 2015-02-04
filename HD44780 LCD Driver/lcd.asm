@@ -189,8 +189,6 @@
 ; ** OKAY LET'S ACTUALLY DO SOME SHIT
 .cseg
 
-	call led_init	; Set our Test LED to output, and off
-
 	call lcd_init	; Initialize the fucking LCD
 
 	ldi TEMP, 0x13
@@ -220,13 +218,9 @@
 	call lcd_puts
 
 mainloop:			; Main program shit
-	call led_dly
-	ldi R20, 0x40
-dlymain:
-	ldi DREG, 0x0F	; Do nothing.
-	call dly_ms
-	dec R20
-	brne dlymain
+
+	; There is nothing here. How sad.	
+
 	jmp mainloop	; Go do main program shit again
 
 
@@ -402,14 +396,12 @@ lcd_init:		; Initializes LCD.as per specs above
 	lds TEMP, PING+0x20
 	cbr TEMP, (1<<PG5)
 	sts PORTG+0x20, TEMP
-	call led_ddr		; toggle the LED saying the I/O pins for the LCD are good
 
 	; Okay, now let's actually initialize this fucker
 
 	ldi DREG, 0xF	; wait 15ms to power up
 	call dly_ms
 	ldi CREG, 0x30	; send the first half of 0x30 (8-bit mode) three times
-	call led_ddr
 	call lcd_nbl
 	ldi DREG, 0x5	; wait 5ms before sending the second set command
 	call dly_ms
@@ -516,39 +508,8 @@ dly_ms:	; I AM USING THE Y REGISTER FOR THIS i am a grown-ass man you can't
 
 dlyms:	sbiw YH:YL, 1
 		brne dlyms
-		;call led_dly
 	ret
 ; End dlyms
-
-led_dly:
-	lds TEMP, PINL
-	ldi TEMP2, (1<<PL7)
-	eor TEMP, TEMP2
-	sts PORTL, TEMP
-	ret
-
-led_ddr:
-	lds TEMP, PINL
-	ldi TEMP2, (1<<PL5)
-	eor TEMP, TEMP2
-	sts PORTL, TEMP
-	ret
-
-led_init:
-	lds TEMP, DDRL
-	ori TEMP, 0b10101010
-	sts DDRL, TEMP
-	lds TEMP, PINL
-	andi TEMP, 0b01010101
-	sts PORTL, TEMP
-	lds TEMP, DDRB+0x20
-	ori TEMP, 0b00001010
-	sts DDRB+0x20, TEMP
-	lds TEMP, PINB+0x20
-	andi TEMP, 0b11110101
-	sts PORTB+0x20, TEMP
-	ret
-
 
 ; *** ***
 ; HEY THESE BULLSHIT FUNCTIONS ARE DONE
