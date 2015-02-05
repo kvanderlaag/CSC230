@@ -1,14 +1,25 @@
 .include "m2560def.inc"
 
-.def CREG=R18
-.def DREG=R19
-.def TEMP=R16
-.def TEMP2=R17
 
 #define FCPU			16e6	; 16MHz
 #define LCD_DAT			50		; 50us for data commands
 #define LCD_ENA			1		; 1us for enable bit on/off
-#define LCD_CLEAR		2000	; 2000us, or 2ms
+#define LCD_CLEAR		2	; 2000us, or 2ms
+
+; Select stack pointer width for your processor.
+; Commenting this out will assume 16-bit SP
+#define SPBITS_22
+
+.def CREG=R18
+.def DREG=R19
+.def TEMP=R16
+.def TEMP2=R17
+.def RET1=R7 ; These three registers can be used to store
+.def RET2=R8 ; return addresses for working with the stack
+#ifdef SPBITS_22	; If your processor has a 22-bit stack pointer, define
+.def RET3=R9		; a third register byte
+#endif
+
 
 ; ***
 ; HD44780 LCD Driver for ATmega2560.
@@ -162,78 +173,66 @@
 ; RS (Cmd/Data) = D8 = H5
 ; RW (Read/Write) = Gnd = 0
 
-; Initilization Process is as follows:
-; 1. Wait for ~50ns from Arduino powerup to allow
-; HD44780 to power up
-; 2. Send 4-bit enable command three times
-;    (This is RS=0, B7=0, B6=0, B5=1, B4=1)
-;	 So, set RS and B4-7, then toggle E on and off 3
-;	 times for three clock cycles of the HD44780
-; 3. Now set interface mode to 4-bit
-;		RS=0, B7=0, B6=0, B5=1, B4=0
-; 4. Then set Display Lines, Font Size
-;		RS=0 B7=0 B6=0 B5=1 B4=0
-;		RS=0 B7=1 B6=0, B5=0, B4=0
-; 5. Then set Display Off, Cursor On, Blink On
-;		RS=0 B7=0 B6=0 B5=0 B4=0
-;		RS=0 B7=1 B6=D=0 B5=C=1 B4=B=1
-; 6. Display Clear
-;		RS=0 B7=0 B6=0 B5=0 B4=0
-;		RS=0 B7=0 B6=0 B5=0 B4=1
-; 7. Entry Mode Set
-;		RS=0 B7=0 B6=0 B5=0 B4=0
-;		RS=0 B7=0 B6=1 B5=1 B4=0
-; Then you should have a display ready to accept commands.
 
 
-; ** OKAY LET'S ACTUALLY DO SOME SHIT
+; **
+; Code segment
 .cseg
 
-	call lcd_init	; Initialize the fucking LCD
 
-	ldi TEMP, 0x13
-	sts cursor_xy, TEMP
-	call lcd_gotoxy
-	
-	ldi XH, high(str)
-	ldi XL, low(str)
-	ldi TEMP, 0x46
-	st X+, TEMP
-	ldi TEMP, 0x75
-	st X+, TEMP
-	ldi TEMP, 0x63
-	st X+, TEMP
-	ldi TEMP, 0x6B
-	st X+, TEMP
-	ldi TEMP, 0xA0
-	st X+, TEMP
-	ldi TEMP, 0x59
-	st X+, TEMP
-	ldi TEMP, 0x6F
-	st X+, TEMP
-	ldi TEMP, 0x75
-	st X+, TEMP
-	ldi TEMP, 0x21
-	st X+, TEMP
+; * Program Initialization/Setup
+
+	call lcd_init	; Initialize the LCD
+
+	ldi TEMP, high(str)
+	push TEMP
+	ldi TEMP, low(str)
+	push TEMP
+	ldi TEMP, high(init<<1)
+	push TEMP
+	ldi TEMP, low(init<<1)
+	push TEMP
+	call str_init
+
 	call lcd_puts
 
-mainloop:			; Main program shit
+; * Main Program Loop
+mainloop:
 
-	; There is nothing here. How sad.	
-
-	jmp mainloop	; Go do main program shit again
-
-
+	jmp mainloop
+; * End of main loop
 
 
-finito: jmp finito ; JUST IN CASE you fucking morons decide to do something
-				   ; stupid in mainloop
+
+
+finito: jmp finito ; Just in case.
 
 ; *** ***
-; HEY THESE ARE ALL THE BULLSHIT FUNCTIONS FOR THE LCD CONTROLLER
-; Don't fuck with these, and don't let your code run into them.
+; LCD Controller Subroutine Definitions
+;
+; * Subroutines *	
+; lcd_nbl     - 	Send high nibble of CREG to LCD. Pulses clock.
+; lcd_byte    - 	Send eight bits of (dat) to LCD. Calls lcd_nbl.
+; lcd_cmd     - 	Set RS pin to 0 (command), send (dat) using lcd_byte
+; lcd_putchar - 	Set RS to 1 (write), send char (dat) to LCD using lcd_byte
+; lcd_puts    - 	Get X<-str, dat<-(str) call lcd_putchar, X, repeat until (X) = 0
+; lcd_gotoxy  -		Get (cursor_xy), calculate DDRAM address for XXXXYYYY, store
+;					in (dat). Set address with lcd_cmd)
+; lcd_clr     -		Clear display. (dat)<-lcd_cmd_CLR, call lcd_cmd
+; dly_us      -		Busy-wait delay loop for ~(DREG) microseconds. (0 <= (DREG) <= 255)
+; dly_ms      -		Busy-wait delay loop for ~(DREG) milliseconds (0 <= (DREG) <= 15)
+; *            *
 
-lcd_nbl: ; sends the high nibble of CREG, pulses clock off after
+
+; **
+; lcd_nbl : 		Send high nibble of CREG to LCD. Pulses clock.
+;
+; Registers:	CREG	-	Register for grabbing from stack..
+;				TEMP	-	Temporary value. MODIFIED.
+;				DREG    -	Passed to dly_us. MODIFIED.
+lcd_nbl:
+	; CREG(7, 6) -> PORTH(4, 3)
+
 	lds TEMP, PINH
 	cbr TEMP, (1<<PH3)+(1<<PH4)
 	sbrc CREG, 7
@@ -242,140 +241,283 @@ lcd_nbl: ; sends the high nibble of CREG, pulses clock off after
 	sbr TEMP, (1<<PH3)
 	sts PORTH, TEMP
 
-	;CREG	( 7)( 6)( 5)( 4)( 3)( 2)( 1)( 0)
-	; 		(H4)(H3)(E3)(G5)( x)( x)( x)( x)
+	; CREG(5) -> PORTE(3)
 	lds TEMP, PINE+0x20
 	cbr TEMP, (1<<PE3)
 	sbrc CREG, 5
 	sbr TEMP, (1<<PE3)
 	sts PORTE+0x20, TEMP
 
+	; CREG(4) -> PORTG(5)
 	lds TEMP, PING+0x20
 	cbr TEMP, (1<<PG5)
 	sbrc CREG, 4
 	sbr TEMP, (1<<PG5)
 	sts PORTG+0x20, TEMP
 
+	; Pulse clock high
 	lds TEMP, PINH
 	sbr TEMP, (1<<PH6)
-	sts PORTH, TEMP 	; pulse the fucking clock
+	sts PORTH, TEMP 
 	
-	; Wait for LCD_ENA microseconds.(LCD_ENA for our LCD is 1)
+	; Wait for LCD_ENA microseconds
 	ldi DREG, 0x05
 	call dly_us
-	lds TEMP, PINH			; These two instructions occupy the last two NOPs
-	cbr TEMP,  (1<<PH6)    ; Of the 1us delay.
+	
+	; Pulse clock low.
+	lds TEMP, PINH
+	cbr TEMP,  (1<<PH6)
 	sts PORTH, TEMP
  
-
+	; Return
 	ret
+; **
 
-lcd_byte: ; gets the command stored in byte dat into CREG,
-		  ; uses lcd_nbl to send the high nibble, then shifts the low nibble
-		  ; into the high nibble, clears the low nibble, and sends the new high nibble.
-	lds CREG, dat
+
+; **
+; lcd_byte :   	 	Send eight bits of (dat) to LCD. Calls lcd_nbl.
+;
+; Registers:	CREG	-	Command Register. Loads from (dat). MODIFIED.
+;				DREG	-	Passed to dly_us. MODIFIED.
+;				TEMP	-	Temporary value. MODIFIED.
+; Memory :		dat		-	Input. Data sent to LCD. 1 byte. Unmodified.
+lcd_byte:
+	; Get stack data into CREG
+	pop RET1
+	pop RET2
+	#ifdef SPBITS_22
+	pop RET3
+	#endif
+	pop CREG
+	#ifdef SPBITS_22
+	push RET3
+	#endif
+	push RET2
+	push RET1
+	; Send high nibble
 	call lcd_nbl
-	ldi DREG, 0x32
+	; Wait LCD_DAT microseconds for command to finish.
+	ldi DREG, LCD_DAT
 	call dly_us
+	; Send low nibble of CREG
 	swap CREG
 	call lcd_nbl
-	ldi DREG, 0x32		; wait 50us for the command to finish.
+	; Wait LCD_DAT microseconds for command to finish,
+	ldi DREG, LCD_DAT
 	call dly_us
-						; the ret occupies the last instruction in the delay
+	swap CREG
+	#ifdef SPBITS_22
+	pop RET3
+	#endif
+	pop RET2
+	pop RET1
+	push CREG
+	push RET1
+	push RET2
+	#ifdef SPBITS_22
+	push RET3
+	#endif
 	ret
+; **
 
-lcd_cmd:		; set RS=0, sends the command in byte dat
+
+; **
+; lcd_cmd :			Set RS pin on LCD to 0 (Command.) Send byte (dat).
+;
+; Registers:	TEMP	-	Temporary value. MODIFIED.
+;				DREG	-	Passed to dly_ms. MODIFIED.
+;				CREG	-	Retrieved from lcd_byte. Swapped. MODIFIED.
+;				
+lcd_cmd:
+	pop RET1
+	pop RET2
+	#ifdef SPBITS_22
+	pop RET3
+	#endif
+	pop CREG
+	#ifdef SPBITS_22
+	push RET3
+	#endif
+	push RET2
+	push RET1
+
+	; Set RS = 0
 	lds TEMP, PINH
 	cbr TEMP, (1<<PH5)
 	sts PORTH, TEMP
+	; Send commnand byte (dat)
+	push CREG
 	call lcd_byte
-	swap CREG
+	; Swap CREG used in lcd_byte back to original state.
+	; On CREG = 0x01, 0x02, or 0x03, command takes longer to execute.
+	; Wait LCD_CLEAR milliseconds before continuing.
+	pop CREG
 	cpi CREG, 0x04
 	brsh cmd_fin
-	ldi DREG, 0x02
+	ldi DREG, LCD_CLEAR
 	call dly_ms
+
 cmd_fin:
 	ret
+; **
 
-lcd_putchar:	; set RS=1, send high nibble of DAT, pulse clock off,
-		  		; send low nibble of DAT, pulse clock off.
+
+; **
+; lcd_putchar : 	Set RS pin on LCD to 1 (write data). Send character in
+;					byte (dat).
+;
+; Registers:	TEMP		-	Temporary value. MODIFIED.
+; Memory:		cursor_xy 	-	Current cursor position. Updates after send. MODIFIED.
+;				dat			-	Character data. Input. Unmodified.
+lcd_putchar:
+	pop RET1
+	pop RET2
+	#ifdef SPBITS_22
+	pop RET3
+	#endif
+	pop CREG
+	#ifdef SPBITS_22
+	push RET3
+	#endif
+	push RET2
+	push RET1
+	; Set RS = 1 (Write data to current DDRAM address)
 	lds TEMP, PINH
 	sbr TEMP, (1<<PH5)
 	sts PORTH, TEMP
+	; Send character data in byte (dat) using lcd_byte
+	push CREG
 	call lcd_byte
+	pop CREG
+	; Update the current cursor position in (cursor_xy) to reflect
+	; increment.
 	lds TEMP, cursor_xy
 	inc TEMP
+	; If incrementing TEMP increases it past 0x0F, use lcd_gotoxy
+	; to update DDRAM address for new line.
 	cpi TEMP, 0x10
 	breq newln
+	; If incrementing TEMP increases it past 0x1F (off the edge of line 2)
+	; then set it back to 0x00 (wrap to beginning) and update DDRAM address
+	; using lcd_gotoxy
 	cpi TEMP, 0x20
 	breq retln
+	; If not (new cursor position is just the next position on the same line,)
+	; update cursor position
 	sts cursor_xy, TEMP
 	ret
 newln:
-	sts cursor_xy, TEMP
+	push TEMP
 	call lcd_gotoxy
 	ret
 retln:
 	clr TEMP
-	sts cursor_xy, TEMP
+	push TEMP
 	call lcd_gotoxy
 	ret
-	
+; **
 	
 
 lcd_puts:		; Load two-byte address in str into X register
 				
-		ldi XH, high(str)
-		ldi XL, low(str)
+		ldi ZH, high(str)
+		ldi ZL, low(str)
 	parse:
-		ld TEMP, X+
-		cpi TEMP, 0
+		ld TEMP2, Z+
+		cpi TEMP2, 0x00
 		breq donestr
-		sts dat, TEMP
+		push TEMP2
 		call lcd_putchar
 		rjmp parse
 	donestr:
 		ret
 
 
+; **
+; lcd_gotoxy :		Use yyyyxxxx stored in (cursor_xy) to determine
+;					memory address in DDRAM. Send command to set address
+;					to LCD.
+; Register:		TEMP	-	Temporary value. MODIFIED.
+;				TEMP2	-	Temporary value. MODIFIED.
+;				R20		-	Temporary value. MODIFIED.
+;				CREG	-	Used in call to lcd_cmd. MODIFIED.
+;				DREG	-	Used in call to lcd_cmd. MODIFIED.
+; Memory:		cursor_xy	-	Cursor position in Row/Column format. Input.
+;								Unmodified.
+;				dat			-	Command data sent to LCD to update DDRAM address.
+;								MODIFIED.
 lcd_gotoxy:
-	lds TEMP, cursor_xy
-	ldi TEMP2, 0x80
-	ldi R20, 0x40
+	pop RET1
+	pop RET2
+	#ifdef SPBITS_22
+	pop RET3
+	#endif
+	pop TEMP
+	#ifdef SPBITS_22
+	push RET3
+	#endif
+	push RET2
+	push RET1
+	
+	sts cursor_xy, TEMP
+	sbrc TEMP, 4
+	ldi TEMP2, LCD_LINE2
+	sbrs TEMP, 4
+	ldi TEMP2, LCD_LINE1
 	; cursor_xy
 	; High -> Row. (0= Row 1, 1= Row 2)
 	; Low -> Col (0= Col 1, F= Col 16)
 	; Line 1 = 0x80
 	; Line 2 = 0x80 + 0x40
-	sbrc TEMP, 4
-	add TEMP2, R20
+
+	; Clear row nibble of coordinates
 	andi TEMP, 0x0F
-	add TEMP2, TEMP
-	sts dat, TEMP2
+	; Add column value to selected row value
+	add TEMP, TEMP2
+	; Memory address is command data
+	push TEMP
 	call lcd_cmd
+
+
+
+
 	ret
+; **
 
 
-; ** lcd_clr: Clear the LCD, return cursor to (0,0)
-lcd_clr:		; Sends the clear command to the LCD, returns cursor to home
+; ** 
+; lcd_clr : 		Clear the LCD, return cursor to (0,0)
+; Registers :	TEMP	-	Temporary value. MODIFIED.
+;				CREG	-	Used in lcd_cmd. MODIFIED.
+;				DREG	-	Used in lcd_cmd. MODIFIED.
+; Memory :		dat			-	Command Data. MODIFIED.
+;				cursor_xy	-	Cursor position. Updated. MODIFIED.
+lcd_clr:
+
 	ldi TEMP, cmd_CLR
-	sts dat, TEMP
+	push TEMP
 	call lcd_cmd
+	; Update cursor position,
+	ldi TEMP, 0x00
+	sts cursor_xy, TEMP
+
 	ret
 ; ** End lcd_clr
 
 
-; ** lcd_init: Initialize our LCD
-
-lcd_init:		; Initializes LCD.as per specs above
-
-	; First let's set all of our pin data directions correctly.
-
-	; H3-H6 = output
-	; E3 = output
-	; G5 = output
-	; I'm also just going to turn those pins off right away because seriously
-	; who even knows what the fuck is going on right now.
+; ** 
+; lcd_init: Initialize our LCD
+; 
+; TO DO:
+;	- Document this.
+;	- Abstract I/O addresses to account for different pin assignment.
+;	
+;	For now, it works.
+lcd_init:
+	
+	; Set Data Direction Register bits to output for LCD data 4-7,
+	; E, and RS.
+	; TODO: Abstract this for different pin assignments.
 	lds TEMP, DDRH
 	sbr TEMP, (1<<PH3)+(1<<PH4)+(1<<PH5)+(1<<PH6)
 	sts DDRH, TEMP
@@ -397,7 +539,9 @@ lcd_init:		; Initializes LCD.as per specs above
 	cbr TEMP, (1<<PG5)
 	sts PORTG+0x20, TEMP
 
-	; Okay, now let's actually initialize this fucker
+	; Initialize display to specs listed in HD44780 data sheet.
+	; Generally very conservative with timing; speed may be improved
+	; with some experimentation.
 
 	ldi DREG, 0xF	; wait 15ms to power up
 	call dly_ms
@@ -407,11 +551,11 @@ lcd_init:		; Initializes LCD.as per specs above
 	call dly_ms
 	ldi CREG, 0x30
 	call lcd_nbl
-	ldi R20, 0x8	; wait 15ms (max for dly_ms) 7 times is ~100ms
+	ldi R21, 0x7	; wait 15ms (max for dly_ms) 7 times is ~100ms
 dly_init:			
 	ldi DREG, 0xF	; wait 100ms before sending the last one
 	call dly_ms
-	dec R20  		; dec temp counter (not used in dly_ms)
+	dec R21  		; dec temp counter (not used in dly_ms)
 	brne dly_init	; if 0, send the nibble again
     ldi CREG, 0x30
 	call lcd_nbl
@@ -422,30 +566,34 @@ dly_init:
 	ldi DREG, LCD_DAT
 	call dly_us
 	ldi TEMP, 0x28		; 4-bit, 2-line, 5x8 dot
-	sts dat, TEMP
+	push TEMP
 	call lcd_cmd
 	ldi TEMP, 0x08		; Display Off, Cursor Off, Blink Off
-	sts dat, TEMP
+	push TEMP
 	call lcd_cmd
 	ldi TEMP, 0x01		; Display Clear
-	sts dat, TEMP
+	push TEMP
 	call lcd_cmd
 	ldi DREG, 0x02
 	call dly_ms
 	ldi TEMP, 0x06		; Increment cursor, no Display Shift
-	sts dat, TEMP
+	push TEMP
 	call lcd_cmd
-	ldi TEMP, 0x0C		; Display On, Cursor On, Blink On
-	sts dat, TEMP
+	ldi TEMP, 0x0F		; Display On, Cursor On, Blink On
+	push TEMP
 	call lcd_cmd
-	ldi TEMP, 0x80
-	sts cursor_xy, TEMP
+	ldi TEMP, 0x00
+	sts cursor_xy, TEMP ; Update cursor position to (0,0)
 
 	ret
-; ** End lcd_init
+; **
 
-; ** dly_us: Wait DREG microseconds
 
+; ** 
+; dly_us : 			Busy-Wait loop for DREG microseconds
+;
+; Registers:	DREG	-	Input. Used as counter. MODIFIED.
+;				TEMP	-	Counter. MODIFIED.
 dly_us:		; Waits DREG microseconds in a busy-wait loop.
 			; DREG can be any number of microseconds from 0 to 255.
 dlyus_dreg:	ldi TEMP, 0x05
@@ -455,13 +603,19 @@ dlyus_in:	dec TEMP
 			brne dlyus_dreg
 
 	ret
-; ** End dly_us
+; **
 
 
-; ** dly_ms: Wait (DREG>>4)&0F milliseconds.
-
-dly_ms:	; I AM USING THE Y REGISTER FOR THIS i am a grown-ass man you can't
-		; tell me not to.
+; ** 
+; dly_ms:			Busy-wait loop for about DREG milliseconds.
+;					Hackily adapted from the delay_ms function
+;					in the AVR C libraries.
+;
+; Register : 	DREG	-	Input. Number of ms to wait. MODIFIED.
+;				YH:YL	-	16-bit counter. MODIFIED.
+;				TEMP	-	Temporary value. MODIFIED.
+dly_ms:
+		; TO DO: Consolidate or remove this Comment Section
 		; 1ms = FCPU / 1000 instructions
 		; This loop is 4 instructions per iteration.
 		; DREG = number of milliseconds to wait, in the high nibble
@@ -480,19 +634,6 @@ dly_ms:	; I AM USING THE Y REGISTER FOR THIS i am a grown-ass man you can't
 		; call led_dly
 		ldi TEMP, 0xFD
 		mul DREG, TEMP
-		; R1 = 2hhhh 1hhhhh
-		; R0 = 2llll 1lllll
-		; TEMP = 2hhhh 1hhhh
-		; TEMP = 1hhhh 2hhhh
-		; TEMP = 1hhhh 0000
-		; YH = TEMP = 1hhhh 0000
-		; TEMP = R0 = 2llll 1llll
-		; TEMP = 1llll 2llll
-		; TEMP2 = TEMP = 1llll 2llll
-		; TEMP = 1llll 0000
-		; YL = TEMP
-		; TEMP2 = 0000 2llll
-		; YH = YH ^ TEMP2
 		mov TEMP, R1
 		swap TEMP
 		andi TEMP, 0xF0
@@ -511,13 +652,64 @@ dlyms:	sbiw YH:YL, 1
 	ret
 ; End dlyms
 
-; *** ***
-; HEY THESE BULLSHIT FUNCTIONS ARE DONE
+str_init:
+	pop RET1
+	pop RET2
+	#ifdef SPBITS_22
+	pop RET3
+	#endif
 
-; Now here's some bullshit data allocation
+	pop ZL
+	pop ZH
+
+	pop XL
+	pop XH
+
+	#ifdef SPBITS_22
+	push RET3
+	#endif
+	push RET2
+	push RET1
+
+initloop:
+	lpm TEMP, Z+
+	cpi TEMP, 0x00
+	breq initdone
+	st X+, TEMP
+	jmp initloop
+initdone:
+	clr TEMP
+	st X+, TEMP
+
+	ret
+
+
+
+; *** ***
+; End of Subroutine Definitions
+
+
+; ***
+; Initialization values for String
+init:	.db		0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0xA0, 0x57 
+init2:	.db		0x6F, 0x72, 0x6C, 0x64, 0x21, 0x00, 0x00, 0x00
+init3:	.db		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+init4:	.db		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+
+
+
+; ***
+; Memory Allocation
 
 .dseg
-	str: .byte 32 ; Reserve 32 characters worth of memory (16x2 character LCD)
-	dat: .byte 1  ; Reserve one byte for a command sent to the LCD controller
-;	dly: .byte 2
-	cursor_xy:	.byte 1
+	str: .byte 33 ; Reserve 33 characters worth of memory (16x2 character LCD),
+				  ; lcd_puts traverses memory until it finds a 0x00 byte. For
+				  ; the love of god, make sure that (str+0x20) = 0x00 when you
+				  ; set it.
+
+	cursor_xy:	.byte 1 ; Reserve one byte for the current cursor position.
+						; cursor_xy = rrrrcccc, where R is row (0x00 or (0x01)
+						; and C is column (0x00 to 0xFF, for our display)
+						; lcd_gotoxy handles memory addresses for this grid.
+						; (Theoretically, one could have 16 rows and 16 columns;
+						; The HD44780 doesn't actually support that many, but hey.
