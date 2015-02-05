@@ -1,21 +1,22 @@
 .include "m2560def.inc"
 
 
-#define FCPU			16e6	; 16MHz
-#define LCD_DAT			50		; 50us for data commands
-#define LCD_ENA			1		; 1us for enable bit on/off
-#define LCD_CLEAR		2	; 2000us, or 2ms
+#define FCPU			16e6		; MCU clock speed in Hz (1e6 = 1MHz)
+#define LCD_DAT			50		; Execute time in microseconds for data commands
+#define LCD_ENA			1		; Execute time in microseconds for clock pulse
+#define LCD_CLEAR		2		; Execute time for longer commands in ms
+#define LCD_2X16				; LCD size in Rows x Columns.
+#define SPBITS_22				; Stack pointer width for return addresses
+;#define SPBITS_16				; Replace previous line with this for MCUS with 16-bit
+						; stack pointers
 
-; Select stack pointer width for your processor.
-; Commenting this out will assume 16-bit SP
-#define SPBITS_22
-
-.def CREG=R18
-.def DREG=R19
-.def TEMP=R16
+; Register definitions used in this module
+.def CREG=R18					; Command or data register used in routines
+.def DREG=R19					; Delay values passed to dly_ms and dly_us
+.def TEMP=R16					; Mnemonics for temporary values
 .def TEMP2=R17
-.def RET1=R7 ; These three registers can be used to store
-.def RET2=R8 ; return addresses for working with the stack
+.def RET1=R7 		; These three registers can be used to store
+.def RET2=R8 		; return addresses for working with the stack
 #ifdef SPBITS_22	; If your processor has a 22-bit stack pointer, define
 .def RET3=R9		; a third register byte
 #endif
@@ -34,10 +35,7 @@
 ; provided by Jason Corless (jcorless@uvic.ca).
 ; Delay loops hackishly paraphrased from Atmel's AVR C libraries.
 ;
-; TODO: 
-; - Remove gratuitous profanity from comments
-; - Document memory locations and registers used in subroutines
-; - Clean up memory allocation: Use of "dat" questionable.
+; TODO:
 ; - Make gotoxy subroutine more robust. Add cases for locations not displayed
 ;   on the 16x2 LCD
 ; - Implement generics and conditional assembly for other pin assignments
@@ -46,59 +44,45 @@
 ; End Notes
 ; ***
 
-; ****
-; Some tedious definitions for LCD sizes
+; Definitions of constants for different LCD sizes.
+; Shamelessly borrowed from the C driver mentioned above.
+#ifdef LCD_1X8
+#define LCD_COLUMN      8
+#define LCD_LINE        1
+#define LCD_LINE1       0x80
+#endif
 
-//#define LCD_1X8
-//#define LCD_1X16
-//#define LCD_1X20
-//#define LCD_1X40
-//#define LCD_2X9
-//#define LCD_2X12
-#define LCD_2X16
-//#define LCD_2X20
-//#define LCD_2X24
-//#define LCD_2X40
-//#define LCD_4X16
-//#define LCD_4X20
+#ifdef LCD_1X16
+#define LCD_COLUMN      16
+#define LCD_LINE        1
+#define LCD_LINE1       0x80
+#endif
 
-//#ifdef LCD_1X8
-//#define LCD_COLUMN      8
-//#define LCD_LINE        1
-//#define LCD_LINE1       0x80
-//#endif
+#ifdef LCD_1X20
+#define LCD_COLUMN      20
+#define LCD_LINE        1
+#define LCD_LINE1       0x80
+#endif
 
-//#ifdef LCD_1X16
-//#define LCD_COLUMN      16
-//#define LCD_LINE        1
-//#define LCD_LINE1       0x80
-//#endif
+#ifdef LCD_1X40
+#define LCD_COLUMN      40
+#define LCD_LINE        1
+#define LCD_LINE1       0x80
+#endif
 
-//#ifdef LCD_1X20
-//#define LCD_COLUMN      20
-//#define LCD_LINE        1
-//#define LCD_LINE1       0x80
-//#endif
+#ifdef LCD_2X8
+#define LCD_COLUMN      8
+#define LCD_LINE        2
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#endif
 
-//#ifdef LCD_1X40
-//#define LCD_COLUMN      40
-;#define LCD_LINE        1
-;#define LCD_LINE1       0x80
-;#endif
-
-;#ifdef LCD_2X8
-;#define LCD_COLUMN      8
-;#define LCD_LINE        2
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#endif
-
-;#ifdef LCD_2X12
-;#define LCD_COLUMN      12
-;#define LCD_LINE        2
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#endif
+#ifdef LCD_2X12
+#define LCD_COLUMN      12
+#define LCD_LINE        2
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#endif
 
 #ifdef LCD_2X16
 #define LCD_COLUMN      16
@@ -107,118 +91,143 @@
 #define LCD_LINE2       (0x80 + 0x40)
 #endif
 
-;#ifdef LCD_2X20
-;#define LCD_COLUMN      20
-;#define LCD_LINE        2
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#endif
+#ifdef LCD_2X20
+#define LCD_COLUMN      20
+#define LCD_LINE        2
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#endif
 
-;#ifdef LCD_2X24
-;#define LCD_COLUMN      24
-;#define LCD_LINE        2
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#endif
+#ifdef LCD_2X24
+#define LCD_COLUMN      24
+#define LCD_LINE        2
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#endif
 
-;#ifdef LCD_2X40
-;#define LCD_COLUMN      40
-;#define LCD_LINE        2
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#endif
+#ifdef LCD_2X40
+#define LCD_COLUMN      40
+#define LCD_LINE        2
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#endif
 
-;#ifdef LCD_4X16
-;#define LCD_COLUMN      16
-;#define LCD_LINE        4
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#define LCD_LINE3       (0x80 + 0x10)
-;#define LCD_LINE4       (0x80 + 0x50)
-;#endif
+#ifdef LCD_4X16
+#define LCD_COLUMN      16
+#define LCD_LINE        4
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#define LCD_LINE3       (0x80 + 0x10)
+#define LCD_LINE4       (0x80 + 0x50)
+#endif
 
-;#ifdef  LCD_4X20
-;#define LCD_COLUMN      20
-;#define LCD_LINE        4
-;#define LCD_LINE1       0x80
-;#define LCD_LINE2       (0x80 + 0x40)
-;#define LCD_LINE3       (0x80 + 0x14)
-;#define LCD_LINE4       (0x80 + 0x54)
-;#endif
+#ifdef  LCD_4X20
+#define LCD_COLUMN      20
+#define LCD_LINE        4
+#define LCD_LINE1       0x80
+#define LCD_LINE2       (0x80 + 0x40)
+#define LCD_LINE3       (0x80 + 0x14)
+#define LCD_LINE4       (0x80 + 0x54)
+#endif
 
-//#define	LCD_TIME_ENA    1.0             // 1?s
-//#define LCD_DAT    50            // 50us
-//#define LCD_TIME_CLR    2000.0          // 2ms
+; End of LCD Constant Definitions
 
-// End of Tedious Definitions
-; ***
-
-; ***
-; Now let's do some tedious definitions for LCD command values!
-
+; Some constant definitions for Hitachi HD44780 Command instructions.
+; Can be used with lcd_cmd by pushing them onto the stack before calling.
 #define cmd_CLR			0x01
 #define cmd_HOM			0x02
 
-; End of more tedious definitions!
+; End of LCD Constant Definitions
 ; ***
 
+; ***
+; LCD Pin Definitions.
+; Changing these should affect lcd_init, lcd_nbl, lcd_byte, and lcd_putchar
+
 ; Data Pins B4-B7
-; B4=D4=G5
-; B5=D5=E3
-; B6=D6=H3
-; B7=D7=H4
+#define P_4 = G
+#define DB4 = (1<<PG5)
+#define P_5 = E
+#define DB5 = (1<<PE3)
+#define P_6 = H
+#define DB6 = (1<<PH3)
+#define P_7 = H
+#define DB7 = (1<<PH4)
 
 ; Command Pins
 ; E (Clock) = D9 = H6
+#define P_ENA = H
+#define ENABLE = (1<<PH6)
 ; RS (Cmd/Data) = D8 = H5
-; RW (Read/Write) = Gnd = 0
+#define P_RS = H
+#define REGSEL = (1<<PH5)
+
+; End of Pin Definitions
+; ***
 
 
-
-; **
-; Code segment
+; ***
+; Code Segment
 .cseg
 
 
-; * Program Initialization/Setup
+; **
+; Program Initialization/Setup
 
-	call lcd_init	; Initialize the LCD
+	call lcd_init		; call lcd_init to Initialize the LCD
 
-	ldi TEMP, high(str)
-	push TEMP
+	ldi TEMP, high(str)	; Push the data memory address 
+	push TEMP		; of str to the stack
 	ldi TEMP, low(str)
 	push TEMP
-	ldi TEMP, high(init<<1)
-	push TEMP
+	ldi TEMP, high(init<<1)	; Push the address of init, shifted for
+	push TEMP		; program memory access, to the stack
 	ldi TEMP, low(init<<1)
 	push TEMP
-	call str_init
+	call str_init		; Call str_init to initialize data memory address
+				; str with the contents of program memory segment
+				; init
 
-	call lcd_puts
 
-; * Main Program Loop
+	call lcd_puts		; Call lcd_puts to output the initialized string
+				; to the LCD. For demonstration purposes only.
+				; May be commented without impacting LCD functionality.
+
+; **
+; Main Program Loop
 mainloop:
 
+
 	jmp mainloop
-; * End of main loop
+; ** 
+; End of Main Program Loop
 
 
 
 
-finito: jmp finito ; Just in case.
+subroutinedefinitions: jmp subroutinedefinitions 	; Just in case.
 
 ; *** ***
 ; LCD Controller Subroutine Definitions
 ;
-; * Subroutines *	
-; lcd_nbl     - 	Send high nibble of CREG to LCD. Pulses clock.
-; lcd_byte    - 	Send eight bits of (dat) to LCD. Calls lcd_nbl.
-; lcd_cmd     - 	Set RS pin to 0 (command), send (dat) using lcd_byte
-; lcd_putchar - 	Set RS to 1 (write), send char (dat) to LCD using lcd_byte
-; lcd_puts    - 	Get X<-str, dat<-(str) call lcd_putchar, X, repeat until (X) = 0
-; lcd_gotoxy  -		Get (cursor_xy), calculate DDRAM address for XXXXYYYY, store
-;					in (dat). Set address with lcd_cmd)
-; lcd_clr     -		Clear display. (dat)<-lcd_cmd_CLR, call lcd_cmd
+; * LCD Subroutines *	
+; lcd_nbl     - 	Take byte from stack. Send high nibble to LCD. Return byte.
+; lcd_byte    - 	Take byte from stack. Push to lcd_nbl. Swap nibbles of byte, push to stack.
+;			call lcd_nbl
+; lcd_cmd     - 	Take byte from stack. Set RS pin to 0 (command). Push byte to LCD
+;			through lcd_byte.
+; lcd_putchar - 	Take byte from stack. Set RS to 1 (write). Push byte to lcd_byte.
+;			Increment cursor_xy.
+; lcd_puts    - 	Take two-byte address of string from stack. Set X pointer to address.
+;			Push (X) to stack. Call lcd_putchar.
+; lcd_gotoxy  -		Take byte from stack. Byte takes form YYYYXXXX. Update cursor_xy to byte.
+;			High nibble is row value, low nibble is column. Use LCD definitions to calculate 
+;			memory address for location on display. Push address to stack. Call lcd_cmd. 
+;			Update cursor_xy to byte.
+; lcd_clr     -		Push 
+;
+;
+; * Delay Subroutines *
 ; dly_us      -		Busy-wait delay loop for ~(DREG) microseconds. (0 <= (DREG) <= 255)
 ; dly_ms      -		Busy-wait delay loop for ~(DREG) milliseconds (0 <= (DREG) <= 15)
 ; *            *
