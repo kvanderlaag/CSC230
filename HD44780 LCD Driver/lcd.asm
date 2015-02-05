@@ -6,9 +6,12 @@
 #define LCD_ENA			1		; Execute time in microseconds for clock pulse
 #define LCD_CLEAR		2		; Execute time for longer commands in ms
 #define LCD_2X16				; LCD size in Rows x Columns.
-#define SPBITS_22				; Stack pointer width for return addresses
-;#define SPBITS_16				; Replace previous line with this for MCUS with 16-bit
-						; stack pointers
+#define SPBITS			22		; Stack pointer width in bits for return addresses.
+						; Mega2560 = 22, some others = 16
+#if SPBITS = 22
+#define SPBITS_22
+#endif
+
 
 ; Register definitions used in this module
 .def CREG=R18					; Command or data register used in routines
