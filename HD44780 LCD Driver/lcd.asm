@@ -480,6 +480,14 @@ lcd_putchar:
 	call lcd_byte
 	pop CREG
 
+	; Increment cursor column. Note that this does not
+	; perform any sort of checking for whether or not
+	; the column number exceeds the number of columns
+	; that the LCD can display, nor does it automatically
+	; adjust the cursor_row position accordingly.
+	lds TEMP, cursor_col
+	inc TEMP
+	sts cursor_col, TEMP
 	ret
 ; 
 ; **
