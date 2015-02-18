@@ -128,7 +128,7 @@
 #message "LCD_DISPLAY_SET not set, using default values."
 
 	#define LCD_SHOW_CURSOR		0	; Show cursor = 1, Hide cursor = 0
-	#define LCD_BLINK_CURSOR	1	; Blink on = 1, off = 0
+	#define LCD_BLINK_CURSOR	0	; Blink on = 1, off = 0
 	#define LCD_DISPLAY_ON		1	; Entire Display On = 1, Off = 0
 
 #endif
@@ -215,8 +215,6 @@
 #ifndef LCD_LIBONLY
 	call lcd_init		; call lcd_init to Initialize the LCD
 
-
-
 	ldi TEMP, high(str)	; Push the data memory address
 	push TEMP			; of str to the stack
 	ldi TEMP, low(str)
@@ -226,10 +224,8 @@
 	ldi TEMP, low(init<<1)
 	push TEMP
 	call str_init		; Call str_init to initialize data memory address
-						; str with the contents of program memory segment
-						; init
-	pop TEMP
-	pop TEMP
+	pop TEMP			; str with the contents of program memory segment
+	pop TEMP			; init
 	pop TEMP
 	pop TEMP
 
