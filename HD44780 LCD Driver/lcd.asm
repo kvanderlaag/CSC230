@@ -5,7 +5,7 @@
 ; Title: 		LCD.asm
 ; Description: 	LCD Configuration and Subroutines
 ; Author: 		Keegan van der Laag (jkvander@uvic.ca)
-; Updated:		14 February 2015
+; Updated:		18 February 2015
 
 ; ---
 ;
@@ -213,8 +213,9 @@
 ; Default Program Initialization/Setup
 ; (Not included if LCD_LIBONLY is defined.)
 #ifndef LCD_LIBONLY
-
 	call lcd_init		; call lcd_init to Initialize the LCD
+
+
 
 	ldi TEMP, high(str)	; Push the data memory address
 	push TEMP			; of str to the stack
@@ -227,11 +228,20 @@
 	call str_init		; Call str_init to initialize data memory address
 						; str with the contents of program memory segment
 						; init
+	pop TEMP
+	pop TEMP
+	pop TEMP
+	pop TEMP
 
-
+	ldi TEMP, high(str)
+	push TEMP
+	ldi TEMP, low(str)
+	push TEMP 
 	call lcd_puts		; Call lcd_puts to output the initialized string
 						; to the LCD. For demonstration purposes only.
 						; May be commented without impacting LCD functionality.
+	pop TEMP
+	pop TEMP
 
 #endif
 ; **
@@ -304,6 +314,10 @@ subroutinedefinitions: jmp subroutinedefinitions 	; Just in case.
 ; Returns:		Nothing.
 ;
 lcd_nbl:
+	push TEMP
+	push CREG
+	push DREG
+
 	lds TEMP, PINS_D4
 	cbr TEMP, (1<<PIN_D4)
 	sbrc CREG, 4
@@ -343,6 +357,9 @@ lcd_nbl:
 	sts PORT_ENA, TEMP
 
 	; Return
+	pop DREG
+	pop CREG
+	pop TEMP
 	ret
 ; **
 ; End of lcd_nbl
@@ -360,21 +377,23 @@ lcd_nbl:
 ;							Used for checking command at end of things
 ;							like lcd_cmd.
 lcd_byte:
+	.set PARAM_OFFSET = 5
 	; Get stack data into CREG
-	pop RET1
-	pop RET2
-	.if SPBITS > 16
-	pop RET3
-	.endif
-	pop CREG
-	.if SPBITS > 16
-	push RET3
-	.endif
-	push RET2
-	push RET1
+	push CREG
+	push DREG
+	push TEMP
+	push YH
+	push YL
+
+	in YH, SPH
+	in YL, SPL
+
+	ldd CREG, Y+(SP_OFFSET+PARAM_OFFSET+1)
+
 	; Send high nibble
 	call lcd_nbl
 	; Wait LCD_DAT microseconds for command to finish.
+
 	ldi DREG, LCD_DAT
 	call dly_us
 	; Send low nibble of CREG
@@ -386,18 +405,12 @@ lcd_byte:
 	; Swap CREG back to original order so that routines like
 	; like lcd_cmd can check data value.
 	swap CREG
-	; Return, pushing CREG onto the stack
-	.if SPBITS > 16
-	pop RET3
-	.endif
-	pop RET2
-	pop RET1
-	push CREG
-	push RET1
-	push RET2
-	.if SPBITS > 16
-	push RET3
-	.endif
+	
+	pop YL
+	pop YH
+	pop TEMP
+	pop DREG
+	pop CREG
 	ret
 ; **
 ; End of lcd_byte
@@ -414,17 +427,17 @@ lcd_byte:
 ;					1:		Command data byte.
 ; Returns:		Nothing.
 lcd_cmd:
-	pop RET1
-	pop RET2
-	.if SPBITS > 16
-	pop RET3
-	.endif
-	pop CREG
-	.if SPBITS > 16
-	push RET3
-	.endif
-	push RET2
-	push RET1
+	.set PARAM_OFFSET = 5
+	push TEMP
+	push DREG
+	push CREG
+	push YH
+	push YL
+	in YH, SPH
+	in YL, SPL
+
+	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
+
 
 	; Set RS = 0
 	lds TEMP, PINS_RS
@@ -433,15 +446,23 @@ lcd_cmd:
 	; Send commnand byte (dat)
 	push CREG
 	call lcd_byte
+	pop CREG
+
 	; On CREG = 0x01, 0x02, or 0x03, command takes longer to execute.
 	; Wait LCD_CLEAR milliseconds before continuing.
-	pop CREG
+
 	cpi CREG, 0x04
 	brsh cmd_fin
 	ldi DREG, LCD_CLEAR
 	call dly_ms
 
 cmd_fin:
+	pop YL
+	pop YH
+	pop CREG
+	pop DREG
+	pop TEMP
+
 	ret
 ; **
 ; End of lcd_cmd
@@ -460,17 +481,17 @@ cmd_fin:
 ; Stack:		Input		-	1 byte. Character data.
 ; Returns:		Nothing.							
 lcd_putchar:
-	pop RET1
-	pop RET2
-	.if SPBITS > 16
-	pop RET3
-	.endif
-	pop CREG
-	.if SPBITS > 16
-	push RET3
-	.endif
-	push RET2
-	push RET1
+	.set PARAM_OFFSET = 4
+	push TEMP
+	push CREG
+	push YH
+	push YL
+
+	in YH, SPH
+	in YL, SPL
+
+	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
+
 	; Set RS = 1 (Write data to current DDRAM address)
 	lds TEMP, PINS_RS
 	sbr TEMP, (1<<PIN_RS)
@@ -488,6 +509,11 @@ lcd_putchar:
 	lds TEMP, cursor_col
 	inc TEMP
 	sts cursor_col, TEMP
+
+	pop YL
+	pop YH
+	pop CREG
+	pop TEMP
 	ret
 ; 
 ; **
@@ -508,17 +534,35 @@ lcd_putchar:
 ; Stack:			Input	-	Two-byte address pointer to string.
 ; Returns:			Nothing
 lcd_puts:		
-
-		ldi ZH, high(str)
-		ldi ZL, low(str)
+	.set PARAM_OFFSET = 6
+	push TEMP
+	push TEMP2
+	push YH
+	push YL
+	push ZH
+	push ZL
+	
+	in YH, SPH
+	in YL, SPL	
+		
+		ldd ZH, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
+		ldd ZL, Y+1+(SP_OFFSET+PARAM_OFFSET)
 	parse:
 		ld TEMP2, Z+
 		cpi TEMP2, 0x00
 		breq donestr
 		push TEMP2
 		call lcd_putchar
+		pop TEMP2
 		rjmp parse
 	donestr:
+		pop ZL
+		pop ZH
+		pop YL
+		pop YH
+		pop TEMP2
+		pop TEMP
+
 		ret
 ; **
 ; End of lcd_puts
@@ -541,18 +585,17 @@ lcd_puts:
 ;					2:			Column to jump to. Range: 0 to (LCD_COLUMN - 1)
 ; Returns:		Nothing
 lcd_gotoxy:
-	pop RET1
-	pop RET2
-	.if SPBITS > 16
-	pop RET3
-	.endif
-	pop TEMP2		; Pop row coordinate into TEMP2
-	pop TEMP		; Pop column coordinate into TEMP
-	.if SPBITS > 16
-	push RET3
-	.endif
-	push RET2
-	push RET1
+	.set PARAM_OFFSET = 4
+	push TEMP
+	push TEMP2
+	push YH
+	push YL
+
+	in YH, SPH
+	in YL, SPL
+
+	ldd TEMP, Y+1+(SP_OFFSET+PARAM_OFFSET)
+	ldd TEMP2, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
 
 	sts cursor_row, TEMP
 	sts cursor_col, TEMP2
@@ -594,7 +637,12 @@ ln1:
 	; Memory address is command data. Send using lcd_cmd
 	push TEMP
 	call lcd_cmd
+	pop TEMP
 
+	pop YL
+	pop YH
+	pop TEMP2
+	pop TEMP
 	ret
 ; **
 ; End of lcd_gotoxy
@@ -608,15 +656,19 @@ ln1:
 ; Stack:		None.
 ; Returns:		None.
 lcd_clr:
+	push TEMP
 
 	ldi TEMP, LCD_CMD_CLR
 	push TEMP
 	call lcd_cmd
+	pop TEMP
+
 	; Update cursor position,
 	clr TEMP
 	sts cursor_row, TEMP
 	sts cursor_col, TEMP
 
+	pop TEMP
 	ret
 ; **
 ; End lcd_clr
@@ -632,6 +684,9 @@ lcd_clr:
 ; Stack:		None
 ; Returns:		Nothing.
 lcd_init:
+	push TEMP
+	push CREG
+	push DREG
 
 	; Set Data Direction Register bits to output for LCD data 4-7,
 	; E, and RS.
@@ -707,25 +762,45 @@ dly_init:
 	ldi DREG, LCD_DAT
 	call dly_us
 	ldi TEMP, LCD_CMD_FUNCTION_SET		; 4-bit, 2-line, 5x8 dot
+
 	push TEMP
 	call lcd_cmd
+	pop TEMP
+
 	ldi TEMP, LCD_CMD_DSP		; Display Off, Cursor Off, Blink Off
+
 	push TEMP
 	call lcd_cmd
+	pop TEMP
+
 	ldi TEMP, LCD_CMD_CLR	; Display Clear
+
 	push TEMP
 	call lcd_cmd
+	pop TEMP
+
 	ldi DREG, LCD_CMD_HOM
 	call dly_ms
 	ldi TEMP, LCD_CMD_ENTRY_MODE		; Increment cursor, no Display Shift
+
 	push TEMP
 	call lcd_cmd
+	pop TEMP
+
 	ldi TEMP, LCD_CMD_DISPLAY_MODE		; Display On, Cursor On, Blink On
+
 	push TEMP
 	call lcd_cmd
+	pop TEMP
+
 	clr TEMP
 	sts cursor_row, TEMP ; Update cursor position to (0,0)
 	sts cursor_col, TEMP
+
+	pop DREG
+	pop CREG
+	pop TEMP
+
 	ret
 ; **
 
@@ -744,11 +819,17 @@ dly_init:
 ; Stack:		Nah.
 ; Returns:		Nothing.
 dly_us:
+	push TEMP
+	push DREG
+
 dlyus_dreg:	ldi TEMP, 0x05
 dlyus_in:	dec TEMP
 			brne dlyus_in
 			dec DREG
 			brne dlyus_dreg
+
+	pop DREG
+	pop TEMP
 
 	ret
 ; **
@@ -768,6 +849,12 @@ dlyus_in:	dec TEMP
 ; Stack:		None.
 ; Returns:		Nothing.
 dly_ms:
+	push TEMP
+	push TEMP2
+	push DREG
+	push YH
+	push YL
+
 		; 1ms = FCPU / 1000 instructions
 		; This loop is 4 instructions per iteration.
 		;
@@ -788,6 +875,12 @@ dly_ms:
 
 dlyms:	sbiw YH:YL, 1
 		brne dlyms
+
+	pop YL
+	pop YH
+	pop DREG
+	pop TEMP2
+	pop TEMP
 	ret
 ; **
 ; End dlyms
@@ -805,31 +898,39 @@ dlyms:	sbiw YH:YL, 1
 ;					   you initialized in program memory, otherwise you're going to have a
 ;					   super-great time trying to figure out why your string keeps getting
 ;					   mangled.
-;				This subroutine does automatically toss a null character on the end of
+;				This subroutine does automatically toss a null character on the end of the
+;				string being initialized.
 str_init:
-	pop RET1
-	pop RET2
-	.if SPBITS > 16
-	pop RET3
-	.endif
+	.set PARAM_OFFSET = 7
+	push TEMP
+	push ZH
+	push ZL
+	push XH
+	push XL
+	push YH
+	push YL
+	in YH, SPH
+	in YL, SPL
 
-	pop ZL
-	pop ZH
+	ldd ZL, Y+1+(SP_OFFSET+PARAM_OFFSET)
+	ldd ZH, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
 
-	pop XL
-	pop XH
-
-	.if SPBITS > 16
-	push RET3
-	.endif
-	push RET2
-	push RET1
+	ldd XL, Y+1+(SP_OFFSET+PARAM_OFFSET)+2
+	ldd XH, Y+1+(SP_OFFSET+PARAM_OFFSET)+3
 
 initloop:
 	lpm TEMP, Z+
 	cpi TEMP, 0x00
 	st X+, TEMP
 	brne initloop
+
+	pop YL
+	pop YH
+	pop XL
+	pop XH
+	pop ZL
+	pop ZH
+	pop TEMP
 
 	ret
 ; **

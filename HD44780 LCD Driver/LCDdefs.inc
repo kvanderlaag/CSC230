@@ -5,7 +5,7 @@
 ; Title: 		LCDdefs.inc
 ; Description: 	Conditional Assembly, Constant Definitions
 ; Author: 		Keegan van der Laag (jkvander@uvic.ca)
-; Updated:		14 February 2015
+; Updated:		18 February 2015
 
 ; ---
 ;
@@ -36,12 +36,9 @@
 ; This kind of just assumes that they don't. I guess we'll find out pretty
 ; quick.
 .if 	RAMEND <	0x100
-.equ SPBITS 		=	16		
-.elif 	RAMEND < 	0x3FFFFF
-.equ SPBITS			=	22
+.equ	SP_OFFSET = 2
 .else
-.equ SPBITS			=	22
-.warning "Unexpectedly large SRAM; Stack Pointer Width set to 22 bits, may cause problems with stack pointer and return addresses."
+.equ 	SP_OFFSET = 3
 .endif
 
 
@@ -52,11 +49,6 @@
 .def DREG	=	R19					; Delay values passed to dly_ms and dly_us
 .def TEMP	=	R16					; Mnemonics for temporary values
 .def TEMP2	=	R17
-.def RET1	=	R7 		; These three registers can be used to store
-.def RET2	=	R8 		; return addresses for working with the stack
-.if SPBITS > 16				; If your processor has a 22-bit stack pointer, define
-	.def RET3	=	R9		; a third register byte
-.endif
 ; ***
 ; End of Driver Register Definitions
 
