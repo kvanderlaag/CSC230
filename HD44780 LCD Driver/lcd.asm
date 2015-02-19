@@ -258,8 +258,10 @@ mainloop:
 
 
 
-#ifdef LCD_LIBONLY
+#ifndef LCD_LIBONLY
 subroutinedefinitions: jmp subroutinedefinitions 	; Just in case.
+#else
+jmp lcd_after
 #endif
 
 ; *** ***
@@ -949,7 +951,9 @@ init:	.db		"Hello, World!", '\0'
 ; ***
 ; End of Program Memory Allocation
 
-
+#ifdef LCD_LIBONLY
+lcd_after:
+#endif
 
 ; ***
 ; Data Memory Allocation
