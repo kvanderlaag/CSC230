@@ -117,7 +117,7 @@
 #define LCD_SIZE
 #message "LCD_SIZE not set, using default values."
 
-	#define LCD_ROW			4
+	#define LCD_ROW			2
 	#define LCD_COLUMN		16
 
 #endif
@@ -386,7 +386,7 @@ lcd_byte:
 	in YH, SPH
 	in YL, SPL
 
-	ldd CREG, Y+(SP_OFFSET+PARAM_OFFSET+1)
+	ldd CREG, Y+1+(SP_OFFSET+5)
 
 	; Send high nibble
 	call lcd_nbl
@@ -400,9 +400,6 @@ lcd_byte:
 	; Wait LCD_DAT microseconds for command to finish,
 	ldi DREG, LCD_DAT
 	call dly_us
-	; Swap CREG back to original order so that routines like
-	; like lcd_cmd can check data value.
-	swap CREG
 	
 	pop YL
 	pop YH
@@ -434,7 +431,7 @@ lcd_cmd:
 	in YH, SPH
 	in YL, SPL
 
-	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
+	ldd CREG, Y+1+(SP_OFFSET+5)
 
 
 	; Set RS = 0
@@ -488,7 +485,7 @@ lcd_putchar:
 	in YH, SPH
 	in YL, SPL
 
-	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
+	ldd CREG, Y+1+(SP_OFFSET+4)
 
 	; Set RS = 1 (Write data to current DDRAM address)
 	lds TEMP, PINS_RS
@@ -543,8 +540,8 @@ lcd_puts:
 	in YH, SPH
 	in YL, SPL	
 		
-		ldd ZH, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
-		ldd ZL, Y+1+(SP_OFFSET+PARAM_OFFSET)
+		ldd ZH, Y+1+(SP_OFFSET+6)+1
+		ldd ZL, Y+1+(SP_OFFSET+6)
 	parse:
 		ld TEMP2, Z+
 		cpi TEMP2, 0x00
@@ -592,8 +589,8 @@ lcd_gotoxy:
 	in YH, SPH
 	in YL, SPL
 
-	ldd TEMP, Y+1+(SP_OFFSET+PARAM_OFFSET)		; Column
-	ldd TEMP2, Y+1+(SP_OFFSET+PARAM_OFFSET)+1	; Row
+	ldd TEMP, Y+1+(SP_OFFSET+4)		; Column
+	ldd TEMP2, Y+1+(SP_OFFSET+4)+1	; Row
 
 	cpi TEMP2, (LCD_ROW - 1)
 	brlt check_col
@@ -634,7 +631,7 @@ addcol:
 	add TEMP, TEMP2
 
 	; Memory address is command data. Send using lcd_cmd
-	push TEMPs
+	push TEMP
 	call lcd_cmd
 	pop TEMP
 
@@ -911,11 +908,11 @@ str_init:
 	in YH, SPH
 	in YL, SPL
 
-	ldd ZL, Y+1+(SP_OFFSET+PARAM_OFFSET)
-	ldd ZH, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
+	ldd ZL, Y+1+(SP_OFFSET+7)
+	ldd ZH, Y+1+(SP_OFFSET+7)+1
 
-	ldd XL, Y+1+(SP_OFFSET+PARAM_OFFSET)+2
-	ldd XH, Y+1+(SP_OFFSET+PARAM_OFFSET)+3
+	ldd XL, Y+1+(SP_OFFSET+7)+2
+	ldd XH, Y+1+(SP_OFFSET+7)+3
 
 initloop:
 	lpm TEMP, Z+
