@@ -5,7 +5,7 @@
 ; Title: 		LCD.asm
 ; Description: 	LCD Configuration and Subroutines
 ; Author: 		Keegan van der Laag (jkvander@uvic.ca)
-; Updated:		18 February 2015
+; Updated:		20 February 2015
 
 ; ---
 ;
@@ -386,7 +386,7 @@ lcd_byte:
 	in YH, SPH
 	in YL, SPL
 
-	ldd CREG, Y+1+(SP_OFFSET+5)
+	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
 
 	; Send high nibble
 	call lcd_nbl
@@ -431,7 +431,7 @@ lcd_cmd:
 	in YH, SPH
 	in YL, SPL
 
-	ldd CREG, Y+1+(SP_OFFSET+5)
+	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
 
 
 	; Set RS = 0
@@ -485,7 +485,7 @@ lcd_putchar:
 	in YH, SPH
 	in YL, SPL
 
-	ldd CREG, Y+1+(SP_OFFSET+4)
+	ldd CREG, Y+1+(SP_OFFSET+PARAM_OFFSET)
 
 	; Set RS = 1 (Write data to current DDRAM address)
 	lds TEMP, PINS_RS
@@ -540,8 +540,8 @@ lcd_puts:
 	in YH, SPH
 	in YL, SPL	
 		
-		ldd ZH, Y+1+(SP_OFFSET+6)+1
-		ldd ZL, Y+1+(SP_OFFSET+6)
+		ldd ZH, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
+		ldd ZL, Y+1+(SP_OFFSET+PARAM_OFFSET)
 	parse:
 		ld TEMP2, Z+
 		cpi TEMP2, 0x00
@@ -589,8 +589,8 @@ lcd_gotoxy:
 	in YH, SPH
 	in YL, SPL
 
-	ldd TEMP, Y+1+(SP_OFFSET+4)		; Column
-	ldd TEMP2, Y+1+(SP_OFFSET+4)+1	; Row
+	ldd TEMP, Y+1+(SP_OFFSET+PARAM_OFFSET)		; Column
+	ldd TEMP2, Y+1+(SP_OFFSET+PARAM_OFFSET)+1	; Row
 
 	cpi TEMP2, (LCD_ROW - 1)
 	brlt check_col
