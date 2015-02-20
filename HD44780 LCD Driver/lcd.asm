@@ -592,11 +592,8 @@ lcd_gotoxy:
 	in YH, SPH
 	in YL, SPL
 
-	ldd TEMP, Y+1+(SP_OFFSET+PARAM_OFFSET)
-	ldd TEMP2, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
-
-	sts cursor_row, TEMP
-	sts cursor_col, TEMP2
+	ldd TEMP, Y+1+(SP_OFFSET+PARAM_OFFSET)		; Column
+	ldd TEMP2, Y+1+(SP_OFFSET+PARAM_OFFSET)+1	; Row
 
 	cpi TEMP2, (LCD_ROW - 1)
 	brlt check_col
@@ -607,33 +604,37 @@ check_col:
 	brlt gotoxy_assign
 	ldi TEMP, (LCD_COLUMN - 1)
 gotoxy_assign:
-	sts cursor_row, TEMP
-	sts cursor_col, TEMP2
+	sts cursor_row, TEMP2
+	sts cursor_col, TEMP
 
 	#ifdef LCD_LINE4
 	cpi TEMP2, 3
 	brne ln3
 	ldi TEMP2, LCD_LINE4
+	jmp addcol
 	#endif
 	#ifdef LCD_LINE3
 ln3:
 	cpi TEMP2, 2
 	brne ln2
 	ldi TEMP2, LCD_LINE3
+	jmp addcol
 	#endif
 	#ifdef LCD_LINE2
 ln2:
 	cpi TEMP2, 1
 	brne ln1
 	ldi TEMP2, LCD_LINE2
+	jmp addcol
 	#endif
 ln1:
 	ldi TEMP2, LCD_LINE1
 
+addcol:
 	add TEMP, TEMP2
 
 	; Memory address is command data. Send using lcd_cmd
-	push TEMP
+	push TEMPs
 	call lcd_cmd
 	pop TEMP
 
