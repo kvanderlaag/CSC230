@@ -9,8 +9,12 @@
 
 ; ---
 ;
-; Some code shamelessly adapted from the C implementation of this driver
-; provided by Jason Corless (jcorless@uvic.ca).
+; Some code shamelessly adapted from the C implementation of an HD44780
+; driver by Peter Dannegger, posted to the AVR Freaks forum. The original
+; driver is available here:
+;
+; http://www.avrfreaks.net/forum/tutc-lcd-tutorial-1001?name=PNphpBB2&file=viewtopic&t=102296
+; 
 ; Delay loops hackishly paraphrased from Atmel's AVR C libraries.
 ;
 ; This module provides configuration, initialization, and control
@@ -474,6 +478,7 @@ cmd_fin:
 ;				CREG		-	Stack input, character to write
 ; Memory:		Nothing.		
 ; Stack:		Input		-	1 byte. Character data.
+;					SP+1	-	Character to write
 ; Returns:		Nothing.							
 lcd_putchar:
 	.set PARAM_OFFSET = 4
@@ -527,6 +532,8 @@ lcd_putchar:
 ;					TEMP	-	Temporary working register
 ;					TEMP2	-	Temporary working register
 ; Stack:			Input	-	Two-byte address pointer to string.
+;						SP+1	-	Low Byte of Address
+;						SP+2	-	High Byte of Address
 ; Returns:			Nothing
 lcd_puts:		
 	.set PARAM_OFFSET = 6
@@ -576,8 +583,8 @@ lcd_puts:
 ;				cursor_col	-	Current cursor column position. Updated.
 ;								Unmodified.
 ; Stack:		Input:			2 bytes
-;					1:			Row to jump to. Range: 0 to (LCD_ROW - 1)
-;					2:			Column to jump to. Range: 0 to (LCD_COLUMN - 1)
+;					SP+1:			Row to jump to. Range: 0 to (LCD_ROW - 1)
+;					SP+2:			Column to jump to. Range: 0 to (LCD_COLUMN - 1)
 ; Returns:		Nothing
 lcd_gotoxy:
 	.set PARAM_OFFSET = 4
