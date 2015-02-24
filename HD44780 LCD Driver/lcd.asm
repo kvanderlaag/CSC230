@@ -5,7 +5,7 @@
 ; Title: 		LCD.asm
 ; Description: 	LCD Configuration and Subroutines
 ; Author: 		Keegan van der Laag (jkvander@uvic.ca)
-; Updated:		20 February 2015
+; Updated:		23 February 2015
 
 ; ---
 ;

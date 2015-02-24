@@ -5,12 +5,15 @@
 ; Title: 		LCDdefs.inc
 ; Description: 	Conditional Assembly, Constant Definitions
 ; Author: 		Keegan van der Laag (jkvander@uvic.ca)
-; Updated:		18 February 2015
+; Updated:		23 February 2015
 
 ; ---
 ;
-; Some code shamelessly adapted from the C implementation of this driver
-; provided by Jason Corless (jcorless@uvic.ca).
+; Some code shamelessly adapted from the C implementation of an HD44780
+; driver by Peter Dannegger, posted to the AVR Freaks forum. The original
+; driver is available here:
+;
+; http://www.avrfreaks.net/forum/tutc-lcd-tutorial-1001?name=PNphpBB2&file=viewtopic&t=102296
 
 
 ; Throws a warning if LCD_LIBONLY is not set before the #include in the program
