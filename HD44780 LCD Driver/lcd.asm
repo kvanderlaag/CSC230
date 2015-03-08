@@ -113,6 +113,14 @@
 .include "m2560def.inc"
 .endif
 
+; Define CPU frequency (in MHz) in FCPU. If FCPU has not been defined, 
+; assume 16 MHz.
+#ifndef FCPU
+#define FCPU  16
+#endif
+; Define loop iterations
+#define dlyCPU (FCPU / 4)
+
 
 ; Define the LCD size in rows x columns. Constants are conditionally
 ; determined based on this, and should be compatible with any HD44780
@@ -825,7 +833,7 @@ dly_us:
 	push TEMP
 	push DREG
 
-dlyus_dreg:	ldi TEMP, 0x05
+dlyus_dreg:	ldi TEMP, (dlyCPU + 1)
 dlyus_in:	dec TEMP
 			brne dlyus_in
 			dec DREG
@@ -842,8 +850,8 @@ dlyus_in:	dec TEMP
 ; **
 ; dly_ms:			Busy-wait loop for about DREG milliseconds.
 ;					Hackily adapted from the delay_ms function
-;					in the AVR C libraries. Regrettably assumes a
-;					CPU speed of 16 MHz.
+;					in the AVR C libraries. 
+;				    0 <= DREG <= 255
 ;
 ; Registers : 	DREG	-	Input. Number of ms to wait. MODIFIED.
 ;				YH:YL	-	16-bit counter. MODIFIED.
@@ -861,23 +869,16 @@ dly_ms:
 		; 1ms = FCPU / 1000 instructions
 		; This loop is 4 instructions per iteration.
 		;
-		ldi TEMP, 0xFD
-		mul DREG, TEMP
-		mov TEMP, R1
-		swap TEMP
-		andi TEMP, 0xF0
-		mov YH, TEMP
-		mov TEMP, R0
-		swap TEMP
-		mov TEMP2, TEMP
-		andi TEMP, 0xF0
-		andi TEMP2, 0x0F
-		mov YL, TEMP
-		or YH, TEMP2
-
-
-dlyms:	sbiw YH:YL, 1
+msdreg:
+		ldi YH, 0x03
+		ldi YL, 0xE8
+dlyms:	ldi TEMP, dlyCPU
+ ms2:	dec TEMP
+		brne ms2
+		sbiw YH:YL, 1
 		brne dlyms
+		dec DREG
+		brne msdreg
 
 	pop YL
 	pop YH
