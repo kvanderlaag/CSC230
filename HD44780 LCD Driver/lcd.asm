@@ -14,7 +14,7 @@
 ; driver is available here:
 ;
 ; http://www.avrfreaks.net/forum/tutc-lcd-tutorial-1001?name=PNphpBB2&file=viewtopic&t=102296
-; 
+;
 ; Delay loops hackishly paraphrased from Atmel's AVR C libraries.
 ;
 ; This module provides configuration, initialization, and control
@@ -26,7 +26,7 @@
 ;	  controller, meaning that the cursor position must be manually tracked
 ;	  and updated to match the LCD if cursor position is important to you.
 ;	- The HD44780 is being operated in 4-bit mode rather than 8-bit.
-;	- Only one HD44780 is connected. (No ridiculously large matrices of 
+;	- Only one HD44780 is connected. (No ridiculously large matrices of
 ;	  characters.)
 ;
 ; Also, the busy-wait delays used for the timing of LCD initialization and
@@ -72,7 +72,7 @@
 ;		LCD_PORT_D7				This uses values from your Atmel partdef
 ;		LCD_PORT_RS				include, and so I/O space offset does not
 ;		LCD_PORT_ENA			need to be applied. Use of .equ is for
-;								compatibility with Atmel's partdefs. Use 
+;								compatibility with Atmel's partdefs. Use
 ;								the defaults provided here as an example.
 ;		LCD_PIN_D4
 ;		LCD_PIN_D5
@@ -113,7 +113,7 @@
 .include "m2560def.inc"
 .endif
 
-; Define CPU frequency (in MHz) in FCPU. If FCPU has not been defined, 
+; Define CPU frequency (in MHz) in FCPU. If FCPU has not been defined,
 ; assume 16 MHz.
 #ifndef FCPU
 #define FCPU  16
@@ -244,7 +244,7 @@
 	ldi TEMP, high(str)
 	push TEMP
 	ldi TEMP, low(str)
-	push TEMP 
+	push TEMP
 	call lcd_puts		; Call lcd_puts to output the initialized string
 						; to the LCD. For demonstration purposes only.
 						; May be commented without impacting LCD functionality.
@@ -412,7 +412,7 @@ lcd_byte:
 	; Wait LCD_DAT microseconds for command to finish,
 	ldi DREG, LCD_DAT
 	call dly_us
-	
+
 	pop YL
 	pop YH
 	pop TEMP
@@ -484,10 +484,10 @@ cmd_fin:
 ;
 ; Registers:	TEMP		-	Temporary value. MODIFIED.
 ;				CREG		-	Stack input, character to write
-; Memory:		Nothing.		
+; Memory:		Nothing.
 ; Stack:		Input		-	1 byte. Character data.
 ;					SP+1	-	Character to write
-; Returns:		Nothing.							
+; Returns:		Nothing.
 lcd_putchar:
 	.set PARAM_OFFSET = 4
 	push TEMP
@@ -523,7 +523,7 @@ lcd_putchar:
 	pop CREG
 	pop TEMP
 	ret
-; 
+;
 ; **
 ; End of lcd_putchar
 
@@ -543,7 +543,7 @@ lcd_putchar:
 ;						SP+1	-	Low Byte of Address
 ;						SP+2	-	High Byte of Address
 ; Returns:			Nothing
-lcd_puts:		
+lcd_puts:
 	.set PARAM_OFFSET = 6
 	push TEMP
 	push TEMP2
@@ -551,10 +551,10 @@ lcd_puts:
 	push YL
 	push ZH
 	push ZL
-	
+
 	in YH, SPH
-	in YL, SPL	
-		
+	in YL, SPL
+
 		ldd ZH, Y+1+(SP_OFFSET+PARAM_OFFSET)+1
 		ldd ZL, Y+1+(SP_OFFSET+PARAM_OFFSET)
 	parse:
@@ -829,6 +829,9 @@ dly_init:
 ; Memory:		Nope.
 ; Stack:		Nah.
 ; Returns:		Nothing.
+#ifdef LCD_DEBUG
+dly_us: ret
+#else
 dly_us:
 	push TEMP
 	push DREG
@@ -843,6 +846,7 @@ dlyus_in:	dec TEMP
 	pop TEMP
 
 	ret
+#endif
 ; **
 ; End of dly_us
 
@@ -850,7 +854,7 @@ dlyus_in:	dec TEMP
 ; **
 ; dly_ms:			Busy-wait loop for about DREG milliseconds.
 ;					Hackily adapted from the delay_ms function
-;					in the AVR C libraries. 
+;					in the AVR C libraries.
 ;				    0 <= DREG <= 255
 ;
 ; Registers : 	DREG	-	Input. Number of ms to wait. MODIFIED.
@@ -859,6 +863,9 @@ dlyus_in:	dec TEMP
 ; Memory:		None.
 ; Stack:		None.
 ; Returns:		Nothing.
+#ifdef LCD_DEBUG
+dly_ms: ret
+#else
 dly_ms:
 	push TEMP
 	push TEMP2
@@ -886,6 +893,7 @@ dlyms:	ldi TEMP, dlyCPU
 	pop TEMP2
 	pop TEMP
 	ret
+#endif
 ; **
 ; End dlyms
 
@@ -972,8 +980,8 @@ lcd_after:
 	#endif
 
 	; Data memory allocated for current LCD cursor position.
-	cursor_row:	.byte 1 
-	cursor_col:	.byte 1	
+	cursor_row:	.byte 1
+	cursor_col:	.byte 1
 
 ; ***
 ; End of Data Memory Allocation
